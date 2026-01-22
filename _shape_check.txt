@@ -1,0 +1,10 @@
+Shapes in template (including group contents):
+
+0: 文字版面配置區 2 - Type: PLACEHOLDER (14)
+1: 投影片編號版面配置區 3 - Type: PLACEHOLDER (14)
+2: 文字方塊 9 - Type: TEXT_BOX (17)
+3: 文字方塊 10 - Type: TEXT_BOX (17)
+4: 群組 5 - Type: GROUP (6)
+  Group contents:
+    0: 文字方塊 11 - Type: TEXT_BOX (17)
+    1: 文字方塊 13 - Type: TEXT_BOX (17)

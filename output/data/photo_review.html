@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>照片審核報告 - CEO Project</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .instructions {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 { margin-top: 0; color: #0056b3; }
+        .instructions ol { margin-bottom: 0; }
+        .person-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .person-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .person-header h2 { margin: 0; font-size: 1.3em; }
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .status-pending { background: #ffc107; color: #333; }
+        .status-confirm { background: #28a745; color: white; }
+        .status-selected { background: #17a2b8; color: white; }
+        .candidates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+        .candidate {
+            border: 3px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .candidate:hover { border-color: #007bff; transform: translateY(-2px); }
+        .candidate.selected { border-color: #28a745; background: #e8f5e9; }
+        .candidate.selected::after {
+            content: "✓";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .candidate img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+        }
+        .candidate-info {
+            padding: 10px;
+            font-size: 0.85em;
+        }
+        .candidate-score {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+        .score-high { background: #d4edda; color: #155724; }
+        .score-medium { background: #fff3cd; color: #856404; }
+        .score-low { background: #f8d7da; color: #721c24; }
+        .no-select {
+            border: 3px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 220px;
+            color: #666;
+            cursor: pointer;
+        }
+        .no-select:hover { border-color: #999; background: #f9f9f9; }
+        .no-select.selected { border-color: #dc3545; background: #fff5f5; }
+        .actions {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+        .url-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        .save-section {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .img-error {
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 180px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 照片審核報告</h1>
+
+        <div class="instructions">
+            <h3>使用說明</h3>
+            <ol>
+                <li>點擊正確的照片選擇它（綠框 + 勾勾表示已選擇）</li>
+                <li>如果所有照片都不對，點擊「都不正確」</li>
+                <li>可以在下方輸入框手動貼上正確的照片 URL</li>
+                <li>完成後點擊「儲存選擇」按鈕，會下載一個 JSON 檔案</li>
+                <li>將下載的 JSON 檔案放到 <code>output/data/</code> 資料夾中覆蓋原檔案</li>
+            </ol>
+        </div>
+
+        <div id="persons-container">
+
+        <div class="person-card" data-row="6">
+            <div class="person-header">
+                <h2>[列 6] 李文正 (Wencheng Lee) - Vena Energy Taiwan (韋能能源)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5622AQHUFlD1rwrgiw/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1732091110926?e=2147483647&v=beta&t=6qyVCLANy045dc_HKhz3BbDQrU2XJUzxtAH3noEmYdI" onclick="selectCandidate(this, '6')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQHUFlD1rwrgiw/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1732091110926?e=2147483647&v=beta&t=6qyVCLANy045dc_HKhz3BbDQrU2XJUzxtAH3noEmYdI" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/vena-energy_venaene...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/C5622AQHJEw-2sOoBqA/feedshare-shrink_800/feedshare-shrink_800/0/1666315431957?e=2147483647&v=beta&t=LJlIDl3cmrdNEYWfVPclxF5cl-EIxFjKQfgAZ0KCd4E" onclick="selectCandidate(this, '6')">
+                    <img src="https://media.licdn.com/dms/image/v2/C5622AQHJEw-2sOoBqA/feedshare-shrink_800/feedshare-shrink_800/0/1666315431957?e=2147483647&v=beta&t=LJlIDl3cmrdNEYWfVPclxF5cl-EIxFjKQfgAZ0KCd4E" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/vena-energy_venaene...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/v2/D5627AQEgPg-awHrrIw/articleshare-shrink_1280_800/articleshare-shrink_1280_800/0/1712057426188?e=2147483647&v=beta&t=i9jarChfSeBBNi4uoAYlekBHNhOfFTbokF9nt4tx1EY" onclick="selectCandidate(this, '6')">
+                    <img src="https://media.licdn.com/dms/image/sync/v2/D5627AQEgPg-awHrrIw/articleshare-shrink_1280_800/articleshare-shrink_1280_800/0/1712057426188?e=2147483647&v=beta&t=i9jarChfSeBBNi4uoAYlekBHNhOfFTbokF9nt4tx1EY" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/energyomni-media_ve...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQFtdV--Ad6kVg/feedshare-shrink_2048_1536/B56ZUDm085HsAo-/0/1739522266479?e=2147483647&v=beta&t=fwm5sUDEE20ol21n2qUX-rfs5hDYjmTs3nAnJbqtXHQ" onclick="selectCandidate(this, '6')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQFtdV--Ad6kVg/feedshare-shrink_2048_1536/B56ZUDm085HsAo-/0/1739522266479?e=2147483647&v=beta&t=fwm5sUDEE20ol21n2qUX-rfs5hDYjmTs3nAnJbqtXHQ" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/vena-energy_vena-en...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQGoDYTnh6uarA/feedshare-shrink_800/feedshare-shrink_800/0/1712828183494?e=2147483647&v=beta&t=WyD-FiHeOudsSPBQWGffND2YHKkmD2A6b2Nu4yrssb8" onclick="selectCandidate(this, '6')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQGoDYTnh6uarA/feedshare-shrink_800/feedshare-shrink_800/0/1712828183494?e=2147483647&v=beta&t=WyD-FiHeOudsSPBQWGffND2YHKkmD2A6b2Nu4yrssb8" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/vena-energy_sustain...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '6')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-6" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('6', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="7">
+            <div class="person-header">
+                <h2>[列 7] 盧東暉 - Micron Technology Inc. (美光科技)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/C5622AQE1jiAKkCyQQQ/feedshare-shrink_1280/0/1592107597462?e=2147483647&v=beta&t=RjdAU7kiOf7b-BFcmWvoc1YYSh7yZoga_msEI5u0u1Y" onclick="selectCandidate(this, '7')">
+                    <img src="https://media.licdn.com/dms/image/C5622AQE1jiAKkCyQQQ/feedshare-shrink_1280/0/1592107597462?e=2147483647&v=beta&t=RjdAU7kiOf7b-BFcmWvoc1YYSh7yZoga_msEI5u0u1Y" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/micron-technology_m...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D4D10AQGNoXiF8Gy3RQ/image-shrink_480/0/1717541018131?e=2147483647&v=beta&t=541VzHsP_SFBGgzp4FWrrKMgyQjhCsQiiW5T2zlFtYA" onclick="selectCandidate(this, '7')">
+                    <img src="https://media.licdn.com/dms/image/D4D10AQGNoXiF8Gy3RQ/image-shrink_480/0/1717541018131?e=2147483647&v=beta&t=541VzHsP_SFBGgzp4FWrrKMgyQjhCsQiiW5T2zlFtYA" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/micron-technology_w...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5610AQH3QjIOWCLaXg/image-shrink_1280/image-shrink_1280/0/1693903205260?e=2147483647&v=beta&t=pUTd3HgdgvNfUUi3g3hk1idGubmgpSvDH65kvQeW_Gk" onclick="selectCandidate(this, '7')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQH3QjIOWCLaXg/image-shrink_1280/image-shrink_1280/0/1693903205260?e=2147483647&v=beta&t=pUTd3HgdgvNfUUi3g3hk1idGubmgpSvDH65kvQeW_Gk" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 70</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/erudite-asia_攻ai市場美...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/C5622AQGDStuhe4jogQ/feedshare-shrink_800/feedshare-shrink_800/0/1624636843039?e=2147483647&v=beta&t=fPyASGS-cKtqA4Wlr8o5cpQOyLsFwZAUeMnLcUWKhPQ" onclick="selectCandidate(this, '7')">
+                    <img src="https://media.licdn.com/dms/image/v2/C5622AQGDStuhe4jogQ/feedshare-shrink_800/feedshare-shrink_800/0/1624636843039?e=2147483647&v=beta&t=fPyASGS-cKtqA4Wlr8o5cpQOyLsFwZAUeMnLcUWKhPQ" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/micron-technology_w...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://imgcdn.cna.com.tw/www/WebPhotos/1024/20230903/1065x768_wmky_0_C20230903000019.jpg" onclick="selectCandidate(this, '7')">
+                    <img src="https://imgcdn.cna.com.tw/www/WebPhotos/1024/20230903/1065x768_wmky_0_C20230903000019.jpg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 40</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.cna.com.tw/news/afe/202309030032.aspx
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '7')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-7" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('7', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="8">
+            <div class="person-header">
+                <h2>[列 8] 卞志祥 (Sean Pien) - Microsoft Corporation (微軟)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/C5603AQGh9WZC_BKduQ/profile-displayphoto-shrink_200_200/0/1649291653955?e=2147483647&v=beta&t=FujEvDnN-0XtjfdKktnR1hCaa8te3qXUy2iu6JSfl-4" onclick="selectCandidate(this, '8')">
+                    <img src="https://media.licdn.com/dms/image/C5603AQGh9WZC_BKduQ/profile-displayphoto-shrink_200_200/0/1649291653955?e=2147483647&v=beta&t=FujEvDnN-0XtjfdKktnR1hCaa8te3qXUy2iu6JSfl-4" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://tw.linkedin.com/in/sean-pien-77656b50
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/D5627AQENzKqc5rZZfA/articleshare-shrink_800/0/1712139215573?e=2147483647&v=beta&t=YD-7zh4Z-DjiA9i9c93UeDdj6f1NUQsymqKZJ4xl8uk" onclick="selectCandidate(this, '8')">
+                    <img src="https://media.licdn.com/dms/image/sync/D5627AQENzKqc5rZZfA/articleshare-shrink_800/0/1712139215573?e=2147483647&v=beta&t=YD-7zh4Z-DjiA9i9c93UeDdj6f1NUQsymqKZJ4xl8uk" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 70</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/feed/update/urn:li:share:...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D4E22AQGRtrjJIw9e0A/feedshare-shrink_800/0/1713861530873?e=2147483647&v=beta&t=BoOJdQB0yawMyiMWreSassf8BOamWBBLYdwmQBfLoW4" onclick="selectCandidate(this, '8')">
+                    <img src="https://media.licdn.com/dms/image/D4E22AQGRtrjJIw9e0A/feedshare-shrink_800/0/1713861530873?e=2147483647&v=beta&t=BoOJdQB0yawMyiMWreSassf8BOamWBBLYdwmQBfLoW4" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/sean-pien-77656b50_...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5622AQE_q9mZDw09GA/feedshare-shrink_800/0/1720603080614?e=2147483647&v=beta&t=O1sWg1xI0V1gNJuCbWDFrcukhWoBCAB28CfyulR-i1c" onclick="selectCandidate(this, '8')">
+                    <img src="https://media.licdn.com/dms/image/D5622AQE_q9mZDw09GA/feedshare-shrink_800/0/1720603080614?e=2147483647&v=beta&t=O1sWg1xI0V1gNJuCbWDFrcukhWoBCAB28CfyulR-i1c" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/sean-pien-77656b50_...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" onclick="selectCandidate(this, '8')">
+                    <img src="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.nlalorphotography.com/blog/what-to-wea...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '8')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-8" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('8', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="9">
+            <div class="person-header">
+                <h2>[列 9] 林雅芳 (Tina Lin) - Alphabet Inc. (Google) (Alphabet（Google母公司）)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/C4D12AQFfyMiZXqLxLA/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520128230084?e=2147483647&v=beta&t=dHF_oAUpHoopzGHaVQmkeIMvEEmaz4sCCM94F6CR9lA" onclick="selectCandidate(this, '9')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4D12AQFfyMiZXqLxLA/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520128230084?e=2147483647&v=beta&t=dHF_oAUpHoopzGHaVQmkeIMvEEmaz4sCCM94F6CR9lA" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 115</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/pulse/why-did-google-lead...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/C5612AQErah07JXXlIw/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1520253043481?e=2147483647&v=beta&t=lTXXu8kOb23Hvx5loHvwOfTDdwyhEjybwrpRYKL1j8M" onclick="selectCandidate(this, '9')">
+                    <img src="https://media.licdn.com/dms/image/v2/C5612AQErah07JXXlIw/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1520253043481?e=2147483647&v=beta&t=lTXXu8kOb23Hvx5loHvwOfTDdwyhEjybwrpRYKL1j8M" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://de.linkedin.com/pulse/alphabet-inc-bryan-c...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/C4E12AQGFC6xS9PqA0g/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520117112136?e=2147483647&v=beta&t=dIGp668Lx8QJZUv3s2YPG5CzlHbisWyqBQcvqLVlvLs" onclick="selectCandidate(this, '9')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4E12AQGFC6xS9PqA0g/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520117112136?e=2147483647&v=beta&t=dIGp668Lx8QJZUv3s2YPG5CzlHbisWyqBQcvqLVlvLs" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/pulse/alphabet-inc-provid...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/C5612AQFN5KkHD9z66w/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520055632118?e=2147483647&v=beta&t=20iTIae_Dlydh2cbPZqNt7HhmKBwYlBHzHr8sVbFDVw" onclick="selectCandidate(this, '9')">
+                    <img src="https://media.licdn.com/dms/image/v2/C5612AQFN5KkHD9z66w/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520055632118?e=2147483647&v=beta&t=20iTIae_Dlydh2cbPZqNt7HhmKBwYlBHzHr8sVbFDVw" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://fr.linkedin.com/pulse/google-devient-alpha...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5612AQFQmGTN9prd5w/article-cover_image-shrink_600_2000/0/1683346988696?e=2147483647&v=beta&t=U5EQqgOkHjTGoqZ0kegeou1V44xJxdg1lFebOLEAhrE" onclick="selectCandidate(this, '9')">
+                    <img src="https://media.licdn.com/dms/image/D5612AQFQmGTN9prd5w/article-cover_image-shrink_600_2000/0/1683346988696?e=2147483647&v=beta&t=U5EQqgOkHjTGoqZ0kegeou1V44xJxdg1lFebOLEAhrE" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/pulse/alphabet-sabeswaran...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '9')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-9" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('9', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="11">
+            <div class="person-header">
+                <h2>[列 11] 劉思泰 (S.T. Liew) - Qualcomm Inc. (高通)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/D5610AQG3KW8pbFYRBA/image-shrink_1280/0/1686848011065/QC_PaidLI_5G_4png?e=2147483647&v=beta&t=8EmgS-pUDOyx9Y1MApvX-BM6o251658Extnr95IdLQY" onclick="selectCandidate(this, '11')">
+                    <img src="https://media.licdn.com/dms/image/D5610AQG3KW8pbFYRBA/image-shrink_1280/0/1686848011065/QC_PaidLI_5G_4png?e=2147483647&v=beta&t=8EmgS-pUDOyx9Y1MApvX-BM6o251658Extnr95IdLQY" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/qualcomm_why-qualco...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5622AQHjLWZwkxUEAg/feedshare-shrink_800/0/1693480157315?e=2147483647&v=beta&t=V-H5uRfsv2CoADx1RoPRDg_SyOkTh8eJB44c8qiEGYU" onclick="selectCandidate(this, '11')">
+                    <img src="https://media.licdn.com/dms/image/D5622AQHjLWZwkxUEAg/feedshare-shrink_800/0/1693480157315?e=2147483647&v=beta&t=V-H5uRfsv2CoADx1RoPRDg_SyOkTh8eJB44c8qiEGYU" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/stliew-qualcomm_dur...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5622AQHtKn2iFOlAJg/feedshare-shrink_800/0/1712628596312?e=2147483647&v=beta&t=__B7T25xzfCfRhFP_vpukq4olKAthMB6AiJnlClTGLw" onclick="selectCandidate(this, '11')">
+                    <img src="https://media.licdn.com/dms/image/D5622AQHtKn2iFOlAJg/feedshare-shrink_800/0/1712628596312?e=2147483647&v=beta&t=__B7T25xzfCfRhFP_vpukq4olKAthMB6AiJnlClTGLw" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/stliew-qualcomm_i-a...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQHtu8_MpExW9w/feedshare-shrink_800/feedshare-shrink_800/0/1733298299754?e=2147483647&v=beta&t=SQrvFgu00TKp8gdE4JkLGYDHza9lAUHsoxk5FKD6ius" onclick="selectCandidate(this, '11')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQHtu8_MpExW9w/feedshare-shrink_800/feedshare-shrink_800/0/1733298299754?e=2147483647&v=beta&t=SQrvFgu00TKp8gdE4JkLGYDHza9lAUHsoxk5FKD6ius" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/stliew-qualcomm_i-h...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/v2/D5627AQFSyJ7ftnz-TQ/articleshare-shrink_800/articleshare-shrink_800/0/1711656199252?e=2147483647&v=beta&t=HEfZPt9QkcS07_oPXRlA4UKoUedPHdGTVLEdDeqnaT8" onclick="selectCandidate(this, '11')">
+                    <img src="https://media.licdn.com/dms/image/sync/v2/D5627AQFSyJ7ftnz-TQ/articleshare-shrink_800/articleshare-shrink_800/0/1711656199252?e=2147483647&v=beta&t=HEfZPt9QkcS07_oPXRlA4UKoUedPHdGTVLEdDeqnaT8" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/qualcomm_meet-the-i...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '11')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-11" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('11', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="12">
+            <div class="person-header">
+                <h2>[列 12] Barry Chen (區域統管) - Broadcom Inc. (博通)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5610AQEkGQOESFXYkA/image-shrink_800/image-shrink_800/0/1733768169927?e=2147483647&v=beta&t=UXi-Y_tbPHrHnu4U6poyjmeCK6VM-dhhw9PEHg7BoN4" onclick="selectCandidate(this, '12')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQEkGQOESFXYkA/image-shrink_800/image-shrink_800/0/1733768169927?e=2147483647&v=beta&t=UXi-Y_tbPHrHnu4U6poyjmeCK6VM-dhhw9PEHg7BoN4" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/barry-chen-80115415...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C5603AQF2ESnAmsNKiA/profile-displayphoto-shrink_200_200/0/1635187696450?e=2147483647&v=beta&t=CpR9O4pZ9zMLBEL6MTWe1rMbU5gU_ZKc6Q5NAo0J9j8" onclick="selectCandidate(this, '12')">
+                    <img src="https://media.licdn.com/dms/image/C5603AQF2ESnAmsNKiA/profile-displayphoto-shrink_200_200/0/1635187696450?e=2147483647&v=beta&t=CpR9O4pZ9zMLBEL6MTWe1rMbU5gU_ZKc6Q5NAo0J9j8" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/in/bairuichen?miniProfile...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C4E22AQFFrt5Pji5zlg/feedshare-shrink_2048_1536/0/1675862832220?e=2147483647&v=beta&t=zQB8ZuOCO9szAhnoj3HcCzH2oQullWlm_u_uwtLjDDs" onclick="selectCandidate(this, '12')">
+                    <img src="https://media.licdn.com/dms/image/C4E22AQFFrt5Pji5zlg/feedshare-shrink_2048_1536/0/1675862832220?e=2147483647&v=beta&t=zQB8ZuOCO9szAhnoj3HcCzH2oQullWlm_u_uwtLjDDs" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/dataardbelava_broad...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5610AQHIFWxobNtfGg/image-shrink_1280/B56ZYcyM6gGoAM-/0/1744239645067?e=2147483647&v=beta&t=j_eSChr6X_TmLDMSaY1-6XKaohNnCqUrChcdtJLGuOo" onclick="selectCandidate(this, '12')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQHIFWxobNtfGg/image-shrink_1280/B56ZYcyM6gGoAM-/0/1744239645067?e=2147483647&v=beta&t=j_eSChr6X_TmLDMSaY1-6XKaohNnCqUrChcdtJLGuOo" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/broadcom-foundation...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D4D10AQEIp0BQ1hMmVQ/image-shrink_1280/image-shrink_1280/0/1710436835735?e=2147483647&v=beta&t=C08du5-qWPKLQgmavM3FpGniIEKMT-2Ke3msRu_95Cg" onclick="selectCandidate(this, '12')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4D10AQEIp0BQ1hMmVQ/image-shrink_1280/image-shrink_1280/0/1710436835735?e=2147483647&v=beta&t=C08du5-qWPKLQgmavM3FpGniIEKMT-2Ke3msRu_95Cg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/jlvignaud_its-been-...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '12')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-12" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('12', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="13">
+            <div class="person-header">
+                <h2>[列 13] 余定陸 (Erix Yu) - Applied Materials Inc. (應用材料)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/C4E1BAQGJMVNT-jHdAg/company-background_10000/company-background_10000/0/1594037518055/picosun_cover?e=2147483647&v=beta&t=MAdfeZuiRHrDrSnwJuw8XfAwHdJ_CCnYtE7M94EtV28" onclick="selectCandidate(this, '13')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4E1BAQGJMVNT-jHdAg/company-background_10000/company-background_10000/0/1594037518055/picosun_cover?e=2147483647&v=beta&t=MAdfeZuiRHrDrSnwJuw8XfAwHdJ_CCnYtE7M94EtV28" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 115</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://fi.linkedin.com/company/picosun
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5622AQExDQ77V3y7UQ/feedshare-shrink_2048_1536/0/1691891674982?e=2147483647&v=beta&t=4Ndidom0W1DP5Qjg9-JAtCB314VQ97CDV3p9Km0MnSQ" onclick="selectCandidate(this, '13')">
+                    <img src="https://media.licdn.com/dms/image/D5622AQExDQ77V3y7UQ/feedshare-shrink_2048_1536/0/1691891674982?e=2147483647&v=beta&t=4Ndidom0W1DP5Qjg9-JAtCB314VQ97CDV3p9Km0MnSQ" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/tohweiyu_one-month-...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5622AQH2ZkWpIT258g/feedshare-shrink_800/0/1685612975594?e=2147483647&v=beta&t=SB01wr26KLwCl598oGlbg1Yz5X4O2Jo2ISoYaZOP2ZU" onclick="selectCandidate(this, '13')">
+                    <img src="https://media.licdn.com/dms/image/D5622AQH2ZkWpIT258g/feedshare-shrink_800/0/1685612975594?e=2147483647&v=beta&t=SB01wr26KLwCl598oGlbg1Yz5X4O2Jo2ISoYaZOP2ZU" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 70</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/applied-materials-t...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQFaDn1NMT44dg/feedshare-shrink_800/feedshare-shrink_800/0/1696408344825?e=2147483647&v=beta&t=vRFrXVtz7Ry3_rPFOHlWpcXC4d1qcPw6uIHDT1AjZ40" onclick="selectCandidate(this, '13')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQFaDn1NMT44dg/feedshare-shrink_800/feedshare-shrink_800/0/1696408344825?e=2147483647&v=beta&t=vRFrXVtz7Ry3_rPFOHlWpcXC4d1qcPw6uIHDT1AjZ40" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://cn.linkedin.com/posts/applied-materials-ta...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D563DAQFk48C-Yw_EOA/image-scale_191_1128/B56ZftIfDfH8Ag-/0/1752030117837/applied_materials_cover?e=2147483647&v=beta&t=hc5CtN7mm6kYnE7U1Yu0ldxRIUZCqq-EJ0putL7cEKI" onclick="selectCandidate(this, '13')">
+                    <img src="https://media.licdn.com/dms/image/v2/D563DAQFk48C-Yw_EOA/image-scale_191_1128/B56ZftIfDfH8Ag-/0/1752030117837/applied_materials_cover?e=2147483647&v=beta&t=hc5CtN7mm6kYnE7U1Yu0ldxRIUZCqq-EJ0putL7cEKI" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 45</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/applied-materials_a...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '13')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-13" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('13', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="14">
+            <div class="person-header">
+                <h2>[列 14] 郭偉毅 - Lam Research Corporation (科林研發)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5610AQHavBINjn0WnQ/image-shrink_1280/image-shrink_1280/0/1724306411799?e=2147483647&v=beta&t=3qZZJXd3_X-fJ_oCXx3Lyv0DMTHkdDQnVzPpd5xnIO0" onclick="selectCandidate(this, '14')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQHavBINjn0WnQ/image-shrink_1280/image-shrink_1280/0/1724306411799?e=2147483647&v=beta&t=3qZZJXd3_X-fJ_oCXx3Lyv0DMTHkdDQnVzPpd5xnIO0" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/andrew-goh-03b5608_...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5610AQG43MaEWLzRAQ/image-shrink_1280/image-shrink_1280/0/1692361804163?e=2147483647&v=beta&t=dcGjOmun6T6UpFUv2J9vApqXedm86SVWU02H2N-CAPI" onclick="selectCandidate(this, '14')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQG43MaEWLzRAQ/image-shrink_1280/image-shrink_1280/0/1692361804163?e=2147483647&v=beta&t=dcGjOmun6T6UpFUv2J9vApqXedm86SVWU02H2N-CAPI" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/lam-research_lamres...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C4D22AQHbKntupZ7Hsg/feedshare-shrink_800/0/1637017210691?e=2147483647&v=beta&t=CtW_gVhfEzCq-uSHUvxTtYCVCO53cooz_B_hY2EQifU" onclick="selectCandidate(this, '14')">
+                    <img src="https://media.licdn.com/dms/image/C4D22AQHbKntupZ7Hsg/feedshare-shrink_800/0/1637017210691?e=2147483647&v=beta&t=CtW_gVhfEzCq-uSHUvxTtYCVCO53cooz_B_hY2EQifU" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://jp.linkedin.com/posts/lam-research_lamrese...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5610AQHmcd36UkrglA/image-shrink_800/0/1695299405335?e=2147483647&v=beta&t=YGjORJRR6bhDZCBNkAVwFM5sy_sx1dQ0ytmmg6MSUgo" onclick="selectCandidate(this, '14')">
+                    <img src="https://media.licdn.com/dms/image/D5610AQHmcd36UkrglA/image-shrink_800/0/1695299405335?e=2147483647&v=beta&t=YGjORJRR6bhDZCBNkAVwFM5sy_sx1dQ0ytmmg6MSUgo" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/feed/update/urn:li:activi...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" onclick="selectCandidate(this, '14')">
+                    <img src="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.nlalorphotography.com/blog/what-to-wea...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '14')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-14" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('14', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="15">
+            <div class="person-header">
+                <h2>[列 15] 何宜修 (Andrew Ho) - Corning Incorporated (康寧)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/C4E22AQHCvvECC-QaUg/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1593532801149?e=2147483647&v=beta&t=INMd1SHBDb5P8JhKgNfd0a6VoZabepdsNG1njWAhrJM" onclick="selectCandidate(this, '15')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4E22AQHCvvECC-QaUg/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1593532801149?e=2147483647&v=beta&t=INMd1SHBDb5P8JhKgNfd0a6VoZabepdsNG1njWAhrJM" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/corning-incorporate...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQF8DA-sYoCPog/feedshare-shrink_800/feedshare-shrink_800/0/1717637215974?e=2147483647&v=beta&t=HR1Tz7Ocp9CsFNHbAbJZKBMD8nSCFjpvPFv7qv_Px_4" onclick="selectCandidate(this, '15')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQF8DA-sYoCPog/feedshare-shrink_800/feedshare-shrink_800/0/1717637215974?e=2147483647&v=beta&t=HR1Tz7Ocp9CsFNHbAbJZKBMD8nSCFjpvPFv7qv_Px_4" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/corning-in-asia_rec...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C5603AQGX8aaFDwSpcA/profile-displayphoto-shrink_800_800/0/1565736315237?e=2147483647&v=beta&t=EBC23aekCf1jyxTSqBiBWWRy3WpU1kuvCqkr5t4I3BA" onclick="selectCandidate(this, '15')">
+                    <img src="https://media.licdn.com/dms/image/C5603AQGX8aaFDwSpcA/profile-displayphoto-shrink_800_800/0/1565736315237?e=2147483647&v=beta&t=EBC23aekCf1jyxTSqBiBWWRy3WpU1kuvCqkr5t4I3BA" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/in/duncan-ho-7384b4184
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQGAf-LlqAWNZQ/feedshare-shrink_800/feedshare-shrink_800/0/1684744526183?e=2147483647&v=beta&t=Ttvvc5tn9Eehqe-K9gtZjFBk1uKvi93-LmR1mdlRiNI" onclick="selectCandidate(this, '15')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQGAf-LlqAWNZQ/feedshare-shrink_800/feedshare-shrink_800/0/1684744526183?e=2147483647&v=beta&t=Ttvvc5tn9Eehqe-K9gtZjFBk1uKvi93-LmR1mdlRiNI" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/ntetaiwan_創勝文教-nte-...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C5122AQHJWU0dbFHiKQ/feedshare-shrink_1280/0/1554772412904?e=2147483647&v=beta&t=DeOjvWQXOXyuaqls4oX71xbcZaqrOA3y_z3YR0_Xo5g" onclick="selectCandidate(this, '15')">
+                    <img src="https://media.licdn.com/dms/image/C5122AQHJWU0dbFHiKQ/feedshare-shrink_1280/0/1554772412904?e=2147483647&v=beta&t=DeOjvWQXOXyuaqls4oX71xbcZaqrOA3y_z3YR0_Xo5g" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/corning-in-asia_dat...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '15')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-15" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('15', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="16">
+            <div class="person-header">
+                <h2>[列 16] 仝漢霖 - 3M Company (3M)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/C4E1BAQGaPmUT2QuUaQ/company-background_10000/company-background_10000/0/1651692299339/3m_cover?e=2147483647&v=beta&t=DpbDUi0q_HpykcwzFmXtiufE2_YHWKJSOW4nskI2TUc" onclick="selectCandidate(this, '16')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4E1BAQGaPmUT2QuUaQ/company-background_10000/company-background_10000/0/1651692299339/3m_cover?e=2147483647&v=beta&t=DpbDUi0q_HpykcwzFmXtiufE2_YHWKJSOW4nskI2TUc" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://sg.linkedin.com/company/3m
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQFC2zuBaMwtCA/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1717482812109?e=2147483647&v=beta&t=6vRkhfz5rXG9S9P66i40TZbUqw-9eydHolwNLVJ4w3I" onclick="selectCandidate(this, '16')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQFC2zuBaMwtCA/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1717482812109?e=2147483647&v=beta&t=6vRkhfz5rXG9S9P66i40TZbUqw-9eydHolwNLVJ4w3I" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/nutape-cc_product-3...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D4E10AQHLIwMj3bBmdQ/image-shrink_1280/0/1718722750636?e=2147483647&v=beta&t=rGfPf15ymGSzQJM6LhuD5oLe5rEX38pABImJGBS61fE" onclick="selectCandidate(this, '16')">
+                    <img src="https://media.licdn.com/dms/image/D4E10AQHLIwMj3bBmdQ/image-shrink_1280/0/1718722750636?e=2147483647&v=beta&t=rGfPf15ymGSzQJM6LhuD5oLe5rEX38pABImJGBS61fE" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://kr.linkedin.com/posts/3m_3m-산업용-카메라-케이블-어셈...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5610AQHg4N4AFRYeMA/image-shrink_800/0/1680271268400?e=2147483647&v=beta&t=M1Vly4N2HVvpXRg0n4-RWfzYBeGiAptJNnWvnJwPNZw" onclick="selectCandidate(this, '16')">
+                    <img src="https://media.licdn.com/dms/image/D5610AQHg4N4AFRYeMA/image-shrink_800/0/1680271268400?e=2147483647&v=beta&t=M1Vly4N2HVvpXRg0n4-RWfzYBeGiAptJNnWvnJwPNZw" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/chris-campbell-0201...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5610AQFexvQHE8NELQ/image-shrink_1280/image-shrink_1280/0/1685680471614?e=2147483647&v=beta&t=KEh39fTub6bySKooaT5uHrdqAyE0W0bfFVGCdOt4YNE" onclick="selectCandidate(this, '16')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQFexvQHE8NELQ/image-shrink_1280/image-shrink_1280/0/1685680471614?e=2147483647&v=beta&t=KEh39fTub6bySKooaT5uHrdqAyE0W0bfFVGCdOt4YNE" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/duc-nguyen-minh-519...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '16')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-16" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('16', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="17">
+            <div class="person-header">
+                <h2>[列 17] 趙建華 (Walter Chao) - Costco Wholesale Corporation (好市多)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/C4E1BAQHQKqO0DbY4OA/company-background_10000/company-background_10000/0/1584663076303/costco_wholesale_cover?e=2147483647&v=beta&t=lyRZCm2Qjvft7YHbgizxh1fJ8iKL1h63rt9sAQnBM_A" onclick="selectCandidate(this, '17')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4E1BAQHQKqO0DbY4OA/company-background_10000/company-background_10000/0/1584663076303/costco_wholesale_cover?e=2147483647&v=beta&t=lyRZCm2Qjvft7YHbgizxh1fJ8iKL1h63rt9sAQnBM_A" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 85</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://cc.linkedin.com/company/costco-wholesale
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C5603AQFTpAucdezh0A/profile-displayphoto-shrink_800_800/0/1621209022283?e=2147483647&v=beta&t=hbwXU3_SOSsChyf21SmLiwZEE-asYaEG0udGST6j6kg" onclick="selectCandidate(this, '17')">
+                    <img src="https://media.licdn.com/dms/image/C5603AQFTpAucdezh0A/profile-displayphoto-shrink_800_800/0/1621209022283?e=2147483647&v=beta&t=hbwXU3_SOSsChyf21SmLiwZEE-asYaEG0udGST6j6kg" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/in/walter-chao
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5603AQFo43hbVVEuLQ/profile-displayphoto-shrink_800_800/0/1684944793877?e=2147483647&v=beta&t=sIDg_4GxKN8GWyrbR9gznxNDAuZn-xUa6LjHSL--T6Y" onclick="selectCandidate(this, '17')">
+                    <img src="https://media.licdn.com/dms/image/D5603AQFo43hbVVEuLQ/profile-displayphoto-shrink_800_800/0/1684944793877?e=2147483647&v=beta&t=sIDg_4GxKN8GWyrbR9gznxNDAuZn-xUa6LjHSL--T6Y" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://tw.linkedin.com/in/walter-yu-826070104
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D4E22AQH894YFBEAZxw/feedshare-shrink_800/B4EZVrOpyhHUAg-/0/1741260768947?e=2147483647&v=beta&t=yB8yF6cd9TJpcT60ERKZNkiucR2Paxlv2R2YG2GKiF8" onclick="selectCandidate(this, '17')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4E22AQH894YFBEAZxw/feedshare-shrink_800/B4EZVrOpyhHUAg-/0/1741260768947?e=2147483647&v=beta&t=yB8yF6cd9TJpcT60ERKZNkiucR2Paxlv2R2YG2GKiF8" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/waltholbrook_mercha...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" onclick="selectCandidate(this, '17')">
+                    <img src="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.nlalorphotography.com/blog/what-to-wea...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '17')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-17" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('17', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="18">
+            <div class="person-header">
+                <h2>[列 18] 邴兆齊 (David Biing) - Ford Motor Company (福特汽車)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5610AQH33lcscJb5xQ/image-shrink_800/B56Za1WPZ3GUAc-/0/1746799230023?e=2147483647&v=beta&t=odQNZFXhASRSIaAseCwCnm7ZOe0rz82Tq42QtjBo-ig" onclick="selectCandidate(this, '18')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQH33lcscJb5xQ/image-shrink_800/B56Za1WPZ3GUAc-/0/1746799230023?e=2147483647&v=beta&t=odQNZFXhASRSIaAseCwCnm7ZOe0rz82Tq42QtjBo-ig" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/ford-motor-company_...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5612AQHGBTNuaD6-HA/article-cover_image-shrink_720_1280/0/1667250967867?e=2147483647&v=beta&t=r4jXHu_fqDUVmkyn3BqlEN0EJ6jxzN9llyc1DK9G95o" onclick="selectCandidate(this, '18')">
+                    <img src="https://media.licdn.com/dms/image/D5612AQHGBTNuaD6-HA/article-cover_image-shrink_720_1280/0/1667250967867?e=2147483647&v=beta&t=r4jXHu_fqDUVmkyn3BqlEN0EJ6jxzN9llyc1DK9G95o" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/ford-motor-company_...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5610AQERUjluLGOCkA/image-shrink_1280/B56ZWBDZpPGoAM-/0/1741626908343?e=2147483647&v=beta&t=xFgXvJDw_a5TUufkBMqoJ6Awgq7wjfxiz9tpQtCj1Jw" onclick="selectCandidate(this, '18')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQERUjluLGOCkA/image-shrink_1280/B56ZWBDZpPGoAM-/0/1741626908343?e=2147483647&v=beta&t=xFgXvJDw_a5TUufkBMqoJ6Awgq7wjfxiz9tpQtCj1Jw" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/automotive-news_for...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" onclick="selectCandidate(this, '18')">
+                    <img src="https://images.squarespace-cdn.com/content/v1/5ec689480cc22c2d441e152f/4abb45fb-e456-4079-8076-b40ac0a89dfc/nlalor-photography-2021-06-17-Jason-Cholewa-Headshot-Web-Sized-1.jpg" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.nlalorphotography.com/blog/what-to-wea...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://thebrandhopper.com/wp-content/uploads/2023/03/ford-history.jpeg" onclick="selectCandidate(this, '18')">
+                    <img src="https://thebrandhopper.com/wp-content/uploads/2023/03/ford-history.jpeg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 55</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.bulbapp.io/p/2f0611b4-0d68-4de4-86f9-e...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '18')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-18" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('18', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="19">
+            <div class="person-header">
+                <h2>[列 19] John-Drew Capalad Reyes - General Mills Inc. (通用磨坊)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/C4E1BAQHkWev68qRJFQ/company-background_10000/company-background_10000/0/1607608109082/general_mills_cover?e=2147483647&v=beta&t=N6eIhp6u2iB6UbA2pWO9ZsPR3vXgGPN9f2MRYqYy6Lw" onclick="selectCandidate(this, '19')">
+                    <img src="https://media.licdn.com/dms/image/v2/C4E1BAQHkWev68qRJFQ/company-background_10000/company-background_10000/0/1607608109082/general_mills_cover?e=2147483647&v=beta&t=N6eIhp6u2iB6UbA2pWO9ZsPR3vXgGPN9f2MRYqYy6Lw" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 85</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://cn.linkedin.com/company/general-mills
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/C5603AQEVhv5RgGvKsw/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1553975020319?e=2147483647&v=beta&t=yQ-k8iRpITeQR-VY2F7ZTgtal89BNhumDs0W1_RJH20" onclick="selectCandidate(this, '19')">
+                    <img src="https://media.licdn.com/dms/image/v2/C5603AQEVhv5RgGvKsw/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1553975020319?e=2147483647&v=beta&t=yQ-k8iRpITeQR-VY2F7ZTgtal89BNhumDs0W1_RJH20" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/in/john-capalad-9bb52091
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C5622AQHs23QdH9co9Q/feedshare-shrink_800/0/1660666457333?e=2147483647&v=beta&t=_MP0AcM2rBJR9d8-3Gp4rRICGaUTlMAaO_jNVNhVWq0" onclick="selectCandidate(this, '19')">
+                    <img src="https://media.licdn.com/dms/image/C5622AQHs23QdH9co9Q/feedshare-shrink_800/0/1660666457333?e=2147483647&v=beta&t=_MP0AcM2rBJR9d8-3Gp4rRICGaUTlMAaO_jNVNhVWq0" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/general-mills_gener...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://vitalcommunities.org/wp-content/uploads/2022/08/John-Drew-231x300.jpg" onclick="selectCandidate(this, '19')">
+                    <img src="https://vitalcommunities.org/wp-content/uploads/2022/08/John-Drew-231x300.jpg" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://vitalcommunities.org/vc_team/john-drew/
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5610AQGNxigp0qzIfw/image-shrink_1280/0/1690216261696?e=2147483647&v=beta&t=VocFxp-0bg7o7HpVyqF1xd7v8fbeQY9FdcwEsHJt7-o" onclick="selectCandidate(this, '19')">
+                    <img src="https://media.licdn.com/dms/image/D5610AQGNxigp0qzIfw/image-shrink_1280/0/1690216261696?e=2147483647&v=beta&t=VocFxp-0bg7o7HpVyqF1xd7v8fbeQY9FdcwEsHJt7-o" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/general-mills_gener...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '19')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-19" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('19', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="20">
+            <div class="person-header">
+                <h2>[列 20] Lauren Kristina Lazowski-Kim - Eli Lilly and Company (禮來)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D4E10AQGYstb_rdcDlw/image-shrink_800/image-shrink_800/0/1711371629796?e=2147483647&v=beta&t=7QJbrOMIRirJKe76firoxB2CBtXtGGSNU86crx96ZMk" onclick="selectCandidate(this, '20')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4E10AQGYstb_rdcDlw/image-shrink_800/image-shrink_800/0/1711371629796?e=2147483647&v=beta&t=7QJbrOMIRirJKe76firoxB2CBtXtGGSNU86crx96ZMk" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 115</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/eli-lilly-and-compa...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D4D22AQGA7491HON3ZQ/feedshare-shrink_800/B4DZdj5NkwH4Ag-/0/1749727632739?e=2147483647&v=beta&t=mJ1L6-7vREfVu3Ndd1OB_xUUwYb1pPINrKBpdFZAi6o" onclick="selectCandidate(this, '20')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4D22AQGA7491HON3ZQ/feedshare-shrink_800/B4DZdj5NkwH4Ag-/0/1749727632739?e=2147483647&v=beta&t=mJ1L6-7vREfVu3Ndd1OB_xUUwYb1pPINrKBpdFZAi6o" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://tr.linkedin.com/posts/pharmaworlddergi_eli...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D4E22AQEU3fqXes_SRA/feedshare-shrink_2048_1536/B4EZZqpfR2HcAw-/0/1745545983730?e=2147483647&v=beta&t=gtNcmMcVeJI4yiE6HGlnVg43ElfGiNI_A5Ocq7Ka2mU" onclick="selectCandidate(this, '20')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4E22AQEU3fqXes_SRA/feedshare-shrink_2048_1536/B4EZZqpfR2HcAw-/0/1745545983730?e=2147483647&v=beta&t=gtNcmMcVeJI4yiE6HGlnVg43ElfGiNI_A5Ocq7Ka2mU" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/amchamtaiwan_𝑻𝑶𝑷𝑰𝑪𝑺...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5603AQFvI3arY_Ueng/profile-displayphoto-shrink_200_200/0/1715917363137?e=2147483647&v=beta&t=lTlwd9wXeFaHDHNSM_DYyIZ39jwNv233L4rHVzT_efk" onclick="selectCandidate(this, '20')">
+                    <img src="https://media.licdn.com/dms/image/D5603AQFvI3arY_Ueng/profile-displayphoto-shrink_200_200/0/1715917363137?e=2147483647&v=beta&t=lTlwd9wXeFaHDHNSM_DYyIZ39jwNv233L4rHVzT_efk" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/in/laurencoffey2024
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D4E03AQG-QOUZ8TjHzA/profile-displayphoto-shrink_200_200/0/1712956202892?e=2147483647&v=beta&t=vzxSHuIyBHx0cQj9wtyenywjuXc7R13eoTZ9AfUNZ9s" onclick="selectCandidate(this, '20')">
+                    <img src="https://media.licdn.com/dms/image/D4E03AQG-QOUZ8TjHzA/profile-displayphoto-shrink_200_200/0/1712956202892?e=2147483647&v=beta&t=vzxSHuIyBHx0cQj9wtyenywjuXc7R13eoTZ9AfUNZ9s" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/in/laurenmaloney13
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '20')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-20" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('20', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="21">
+            <div class="person-header">
+                <h2>[列 21] 湯偉成 - Merck & Co. Inc. (默克藥廠)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D4E34AQGSNefuk7N9_g/ugc-proxy-shrink_1280_800/ugc-proxy-shrink_1280_800/0/1660291202482?e=2147483647&v=beta&t=6Tt2zI9iTQwmo9nwG6RJQGI2_eC5jrwoorWWubVjqjI" onclick="selectCandidate(this, '21')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4E34AQGSNefuk7N9_g/ugc-proxy-shrink_1280_800/ugc-proxy-shrink_1280_800/0/1660291202482?e=2147483647&v=beta&t=6Tt2zI9iTQwmo9nwG6RJQGI2_eC5jrwoorWWubVjqjI" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/merck-healthcare_ca...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5612AQH8Y-W-3fEzwQ/article-cover_image-shrink_720_1280/0/1694636544263?e=2147483647&v=beta&t=3gd-5aDDSFTzGpXnYYDv4mfChWrfa29NyVyQKeSWy1Y" onclick="selectCandidate(this, '21')">
+                    <img src="https://media.licdn.com/dms/image/D5612AQH8Y-W-3fEzwQ/article-cover_image-shrink_720_1280/0/1694636544263?e=2147483647&v=beta&t=3gd-5aDDSFTzGpXnYYDv4mfChWrfa29NyVyQKeSWy1Y" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/pulse/merck-2024-future-t...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/v2/D4D27AQH8A_RSrKjLLA/articleshare-shrink_800/articleshare-shrink_800/0/1712087246650?e=2147483647&v=beta&t=xV6fRdm9edaEg4cQAW7Aa4vpskDI4bBkYa0R00sQjEs" onclick="selectCandidate(this, '21')">
+                    <img src="https://media.licdn.com/dms/image/sync/v2/D4D27AQH8A_RSrKjLLA/articleshare-shrink_800/articleshare-shrink_800/0/1712087246650?e=2147483647&v=beta&t=xV6fRdm9edaEg4cQAW7Aa4vpskDI4bBkYa0R00sQjEs" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/jeffespenship_merck...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D4D10AQE13dfKfmT7dA/image-shrink_800/image-shrink_800/0/1693842684077?e=2147483647&v=beta&t=ozd1eRiQpLbYPciMCsN9nHZ4DXh6CZZveXZCi1Mq0ys" onclick="selectCandidate(this, '21')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4D10AQE13dfKfmT7dA/image-shrink_800/image-shrink_800/0/1693842684077?e=2147483647&v=beta&t=ozd1eRiQpLbYPciMCsN9nHZ4DXh6CZZveXZCi1Mq0ys" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/feed/update/urn:li:activi...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://images.squarespace-cdn.com/content/v1/5521b031e4b06ebe90178744/4edee838-e14b-4033-a9c1-8e3664b2c567/business-corporate-headshots-portrait-male.jpg" onclick="selectCandidate(this, '21')">
+                    <img src="https://images.squarespace-cdn.com/content/v1/5521b031e4b06ebe90178744/4edee838-e14b-4033-a9c1-8e3664b2c567/business-corporate-headshots-portrait-male.jpg" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 55</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.kingstreetphotostudio.com/headshots-co...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '21')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-21" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('21', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="22">
+            <div class="person-header">
+                <h2>[列 22] 蘇愛華 (Cathy Su) - Gilead Sciences Inc. (吉利德科學)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D4E22AQF_8sWOlegxAw/feedshare-shrink_800/B4EZe4_uhBHgAg-/0/1751155403314?e=2147483647&v=beta&t=VRHeegY-VBNxc27n7F4ywe3ALBO6-xSog3xxj1IvXJM" onclick="selectCandidate(this, '22')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4E22AQF_8sWOlegxAw/feedshare-shrink_800/B4EZe4_uhBHgAg-/0/1751155403314?e=2147483647&v=beta&t=VRHeegY-VBNxc27n7F4ywe3ALBO6-xSog3xxj1IvXJM" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 105</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/avista-therapeutics...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5618AQEh6FdsVHly8Q/companyUpdate-article-image-shrink_1280/0/1665514454958?e=2147483647&v=beta&t=tK13pSXsor33Jng1-h9Zwx027NawTOSk8ZoYCPfodhs" onclick="selectCandidate(this, '22')">
+                    <img src="https://media.licdn.com/dms/image/D5618AQEh6FdsVHly8Q/companyUpdate-article-image-shrink_1280/0/1665514454958?e=2147483647&v=beta&t=tK13pSXsor33Jng1-h9Zwx027NawTOSk8ZoYCPfodhs" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/gilead-sciences_gil...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C4E18AQHGx5p9NabACA/companyUpdate-article-image-shrink_1280/0/1659689657668?e=2147483647&v=beta&t=kajvnUf-VkX56sE3KpKi4pEZCORs21f2Yg4KPWdXB6E" onclick="selectCandidate(this, '22')">
+                    <img src="https://media.licdn.com/dms/image/C4E18AQHGx5p9NabACA/companyUpdate-article-image-shrink_1280/0/1659689657668?e=2147483647&v=beta&t=kajvnUf-VkX56sE3KpKi4pEZCORs21f2Yg4KPWdXB6E" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/gilead-sciences_gil...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQGIAHLTZ4TDAw/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1709875847187?e=2147483647&v=beta&t=ArBpY02e_QaJnSzboPrSiYe6H0Z7Exz6mX2TMBz8Hbo" onclick="selectCandidate(this, '22')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQGIAHLTZ4TDAw/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1709875847187?e=2147483647&v=beta&t=ArBpY02e_QaJnSzboPrSiYe6H0Z7Exz6mX2TMBz8Hbo" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/cathysu_internation...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/D5627AQHpozPS27wOlg/articleshare-shrink_800/0/1718073089559?e=2147483647&v=beta&t=yh0DXXuxJVBsMuRS7UpvwlfJild8t2LESROiYnY2Kis" onclick="selectCandidate(this, '22')">
+                    <img src="https://media.licdn.com/dms/image/sync/D5627AQHpozPS27wOlg/articleshare-shrink_800/0/1718073089559?e=2147483647&v=beta&t=yh0DXXuxJVBsMuRS7UpvwlfJild8t2LESROiYnY2Kis" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 45</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/cathysu_gilead-scie...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '22')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-22" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('22', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="23">
+            <div class="person-header">
+                <h2>[列 23] Sandeep Karwa - Coupang Inc. (酷澎)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5603AQHRZzYixn0Xsg/profile-displayphoto-shrink_200_200/B56ZRz4uYQHsAg-/0/1737111038963?e=2147483647&v=beta&t=MbHtVw9a3plrlJ6fpg1pjpV6XD3a74Q5CZREns7q3zo" onclick="selectCandidate(this, '23')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5603AQHRZzYixn0Xsg/profile-displayphoto-shrink_200_200/B56ZRz4uYQHsAg-/0/1737111038963?e=2147483647&v=beta&t=MbHtVw9a3plrlJ6fpg1pjpV6XD3a74Q5CZREns7q3zo" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://tw.linkedin.com/in/sandeepkarwa
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/C5122AQENwbax5Ad4Uw/feedshare-shrink_800/0/1575361843058?e=2147483647&v=beta&t=JStoZ-5AjmZRA0BxT3b32CS5bBuBLLo3QG9KmwJUGAs" onclick="selectCandidate(this, '23')">
+                    <img src="https://media.licdn.com/dms/image/C5122AQENwbax5Ad4Uw/feedshare-shrink_800/0/1575361843058?e=2147483647&v=beta&t=JStoZ-5AjmZRA0BxT3b32CS5bBuBLLo3QG9KmwJUGAs" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/coupang_coupang-cou...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5610AQE6YM7D5u-mTQ/image-shrink_800/B56ZUdOLE0HoAg-/0/1739952011755?e=2147483647&v=beta&t=Q6yYvwoPiH7L96eIjJZ_F1MAkTNiBt31HncyAw1sPK8" onclick="selectCandidate(this, '23')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5610AQE6YM7D5u-mTQ/image-shrink_800/B56ZUdOLE0HoAg-/0/1739952011755?e=2147483647&v=beta&t=Q6yYvwoPiH7L96eIjJZ_F1MAkTNiBt31HncyAw1sPK8" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/coupang_coupang-酷澎-...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/D5622AQFKj_LqFo2yQA/feedshare-shrink_2048_1536/0/1683271909560?e=2147483647&v=beta&t=eAu-YPGgsScDdXIYvUcVLuOjoEAvEbFfs6lttsOqfFw" onclick="selectCandidate(this, '23')">
+                    <img src="https://media.licdn.com/dms/image/D5622AQFKj_LqFo2yQA/feedshare-shrink_2048_1536/0/1683271909560?e=2147483647&v=beta&t=eAu-YPGgsScDdXIYvUcVLuOjoEAvEbFfs6lttsOqfFw" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://cn.linkedin.com/posts/coupang_coupangtaiwa...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQHzPe13yg7-vw/feedshare-shrink_800/feedshare-shrink_800/0/1702453607427?e=2147483647&v=beta&t=u_mpRyCxydVyp51eXhNGigf9YKSZNrNMHREtGyauz6o" onclick="selectCandidate(this, '23')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQHzPe13yg7-vw/feedshare-shrink_800/feedshare-shrink_800/0/1702453607427?e=2147483647&v=beta&t=u_mpRyCxydVyp51eXhNGigf9YKSZNrNMHREtGyauz6o" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/coupang-marketplace...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '23')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-23" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('23', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="24">
+            <div class="person-header">
+                <h2>[列 24] Margarita Peker (楊麗達) - Uber Technologies Inc. (Uber)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5603AQGXVPQL3dkKIw/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1678151834296?e=2147483647&v=beta&t=D-t4Xug7_1JHNLxUWp4pFwZtxrh_3onnA5qUIt3s7u0" onclick="selectCandidate(this, '24')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5603AQGXVPQL3dkKIw/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1678151834296?e=2147483647&v=beta&t=D-t4Xug7_1JHNLxUWp4pFwZtxrh_3onnA5qUIt3s7u0" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 80</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://tw.linkedin.com/in/margarita-peker
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5605AQGgBhYWE-thMg/videocover-high/videocover-high/0/1726036963319?e=2147483647&v=beta&t=L0RsJac3CczYBhdMz5CEI3kDYx17O8uRLZD1fUhqxW8" onclick="selectCandidate(this, '24')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5605AQGgBhYWE-thMg/videocover-high/videocover-high/0/1726036963319?e=2147483647&v=beta&t=L0RsJac3CczYBhdMz5CEI3kDYx17O8uRLZD1fUhqxW8" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 70</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/margarita-peker-401...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/v2/D5627AQGfzWMXu8VDtw/articleshare-shrink_1280_800/articleshare-shrink_1280_800/0/1712081843070?e=2147483647&v=beta&t=bY14XImV1qdtygVKLseiFp8817vFzLLdSkjUEofViPQ" onclick="selectCandidate(this, '24')">
+                    <img src="https://media.licdn.com/dms/image/sync/v2/D5627AQGfzWMXu8VDtw/articleshare-shrink_1280_800/articleshare-shrink_1280_800/0/1712081843070?e=2147483647&v=beta&t=bY14XImV1qdtygVKLseiFp8817vFzLLdSkjUEofViPQ" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/margarita-peker-401...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQHOkuTTSyst-w/feedshare-shrink_800/B56ZdTnYahGsAg-/0/1749454524262?e=2147483647&v=beta&t=8pDYoZQv0Iund6zZ5vSSroWpWcDZHsASUyWzK8qDmqQ" onclick="selectCandidate(this, '24')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQHOkuTTSyst-w/feedshare-shrink_800/B56ZdTnYahGsAg-/0/1749454524262?e=2147483647&v=beta&t=8pDYoZQv0Iund6zZ5vSSroWpWcDZHsASUyWzK8qDmqQ" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/margarita-peker_tod...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://image-cdn.learnin.tw/bnextmedia/image/album/2023-03/img-1678177878-62882.jpg?w=900&output=webp" onclick="selectCandidate(this, '24')">
+                    <img src="https://image-cdn.learnin.tw/bnextmedia/image/album/2023-03/img-1678177878-62882.jpg?w=900&output=webp" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-medium">分數: 35</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.bnext.com.tw/article/74366/uber-taiwan...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '24')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-24" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('24', this.value)">
+            </div>
+        </div>
+
+        <div class="person-card" data-row="25">
+            <div class="person-header">
+                <h2>[列 25] 黃怡玫 (Maya Huang) - Netflix Inc. (Netflix)</h2>
+                <span class="status-badge status-confirm">待確認</span>
+            </div>
+            <div class="candidates-grid">
+
+                <div class="candidate selected" data-url="https://media.licdn.com/dms/image/v2/D5622AQFSx5jnJfy07w/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1725194168525?e=2147483647&v=beta&t=DMB2-msQ99atZMmu1kb2E6kfUlSq0H80EE_82kTOIaA" onclick="selectCandidate(this, '25')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQFSx5jnJfy07w/feedshare-shrink_2048_1536/feedshare-shrink_2048_1536/0/1725194168525?e=2147483647&v=beta&t=DMB2-msQ99atZMmu1kb2E6kfUlSq0H80EE_82kTOIaA" alt="候選照片 1" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/janinestein_netflix...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D5622AQHtki7B1fQZsQ/feedshare-shrink_2048_1536/B56ZSJai1FGQAo-/0/1737472232790?e=2147483647&v=beta&t=zH_a_6WA_F_gICMSWRQnebNLdMA1jqGC7LIGdL-49C8" onclick="selectCandidate(this, '25')">
+                    <img src="https://media.licdn.com/dms/image/v2/D5622AQHtki7B1fQZsQ/feedshare-shrink_2048_1536/B56ZSJai1FGQAo-/0/1737472232790?e=2147483647&v=beta&t=zH_a_6WA_F_gICMSWRQnebNLdMA1jqGC7LIGdL-49C8" alt="候選照片 2" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/bookstr_in-case-you...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/D5627AQHore-6eBFLNQ/articleshare-shrink_800/0/1711655847622?e=2147483647&v=beta&t=-6b0g_Vvp4k9l6PJE6F8zSo66WT8YvZSTZL2lsqLwq4" onclick="selectCandidate(this, '25')">
+                    <img src="https://media.licdn.com/dms/image/sync/D5627AQHore-6eBFLNQ/articleshare-shrink_800/0/1711655847622?e=2147483647&v=beta&t=-6b0g_Vvp4k9l6PJE6F8zSo66WT8YvZSTZL2lsqLwq4" alt="候選照片 3" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 75</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/wenny-huang-8065605...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/sync/v2/D5627AQF931QbRM_1qQ/articleshare-shrink_800/articleshare-shrink_800/0/1711182359234?e=2147483647&v=beta&t=3W7w5ps6EDYzhBBiZsyaAfsYMQccDY24XV9XL46zWks" onclick="selectCandidate(this, '25')">
+                    <img src="https://media.licdn.com/dms/image/sync/v2/D5627AQF931QbRM_1qQ/articleshare-shrink_800/articleshare-shrink_800/0/1711182359234?e=2147483647&v=beta&t=3W7w5ps6EDYzhBBiZsyaAfsYMQccDY24XV9XL46zWks" alt="候選照片 4" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/vivientan93_at-the-...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="candidate " data-url="https://media.licdn.com/dms/image/v2/D4D22AQHaGm0vXsGDdg/feedshare-shrink_800/feedshare-shrink_800/0/1728196814287?e=2147483647&v=beta&t=qRkQ7hPqWsED0bWbsi8-y9VHSPiWWtWFRwC6pQdOs2c" onclick="selectCandidate(this, '25')">
+                    <img src="https://media.licdn.com/dms/image/v2/D4D22AQHaGm0vXsGDdg/feedshare-shrink_800/feedshare-shrink_800/0/1728196814287?e=2147483647&v=beta&t=qRkQ7hPqWsED0bWbsi8-y9VHSPiWWtWFRwC6pQdOs2c" alt="候選照片 5" onerror="this.parentElement.innerHTML='<div class=img-error>圖片載入失敗</div>'">
+                    <div class="candidate-info">
+                        <span class="candidate-score score-high">分數: 65</span>
+                        <div style="margin-top:5px;color:#666;font-size:0.8em;word-break:break-all;">
+                            https://www.linkedin.com/posts/sidmjain_creativeas...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-select" data-url="" onclick="selectCandidate(this, '25')">
+                    <span>❌ 都不正確</span>
+                </div>
+            </div>
+            <div class="actions">
+                <label>手動輸入照片 URL：</label>
+                <input type="text" class="url-input" id="url-25" placeholder="貼上正確的照片 URL..." onchange="updateManualUrl('25', this.value)">
+            </div>
+        </div>
+
+        </div>
+
+        <div class="save-section">
+            <button class="btn btn-success" onclick="saveSelections()">💾 儲存選擇（下載 JSON）</button>
+            <button class="btn btn-primary" onclick="copyToClipboard()">📋 複製到剪貼簿</button>
+        </div>
+    </div>
+
+    <script>
+        // 儲存所有選擇
+        let selections = {};
+
+        // 初始化選擇（使用預設的 best_url）
+        document.querySelectorAll('.person-card').forEach(card => {
+            const row = card.dataset.row;
+            const selected = card.querySelector('.candidate.selected');
+            if (selected) {
+                selections[row] = selected.dataset.url;
+            }
+        });
+
+        function selectCandidate(element, row) {
+            // 移除同組的其他選擇
+            const card = element.closest('.person-card');
+            card.querySelectorAll('.candidate, .no-select').forEach(c => c.classList.remove('selected'));
+
+            // 選擇當前
+            element.classList.add('selected');
+
+            // 儲存選擇
+            selections[row] = element.dataset.url;
+
+            // 更新狀態標籤
+            const badge = card.querySelector('.status-badge');
+            if (element.dataset.url) {
+                badge.textContent = '已選擇';
+                badge.className = 'status-badge status-selected';
+            } else {
+                badge.textContent = '待補充';
+                badge.className = 'status-badge status-pending';
+            }
+
+            // 清空手動輸入框（如果選擇了候選照片）
+            if (element.dataset.url) {
+                document.getElementById('url-' + row).value = '';
+            }
+        }
+
+        function updateManualUrl(row, url) {
+            if (url.trim()) {
+                // 取消其他選擇
+                const card = document.querySelector(`.person-card[data-row="${row}"]`);
+                card.querySelectorAll('.candidate, .no-select').forEach(c => c.classList.remove('selected'));
+
+                // 儲存手動輸入的 URL
+                selections[row] = url.trim();
+
+                // 更新狀態
+                const badge = card.querySelector('.status-badge');
+                badge.textContent = '已手動輸入';
+                badge.className = 'status-badge status-selected';
+            }
+        }
+
+        function saveSelections() {
+            // 讀取當前的照片候選 JSON 結構
+            const output = {};
+
+            document.querySelectorAll('.person-card').forEach(card => {
+                const row = card.dataset.row;
+                const selectedUrl = selections[row] || '';
+                const manualUrl = document.getElementById('url-' + row).value.trim();
+                const finalUrl = manualUrl || selectedUrl;
+
+                output[row] = {
+                    selected_url: finalUrl,
+                    status: finalUrl ? '已確認' : '待補充'
+                };
+            });
+
+            // 下載 JSON
+            const blob = new Blob([JSON.stringify(output, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'photo_selections.json';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            alert('已下載 photo_selections.json\n\n請執行以下命令套用選擇：\npython src/apply_photo_selections.py');
+        }
+
+        function copyToClipboard() {
+            const output = {};
+            document.querySelectorAll('.person-card').forEach(card => {
+                const row = card.dataset.row;
+                const selectedUrl = selections[row] || '';
+                const manualUrl = document.getElementById('url-' + row).value.trim();
+                output[row] = manualUrl || selectedUrl;
+            });
+
+            navigator.clipboard.writeText(JSON.stringify(output, null, 2))
+                .then(() => alert('已複製到剪貼簿！'))
+                .catch(err => alert('複製失敗: ' + err));
+        }
+    </script>
+</body>
+</html>
